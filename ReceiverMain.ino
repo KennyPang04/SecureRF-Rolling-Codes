@@ -5,12 +5,11 @@
 const int funct1 = 10, funct2 = 11, funct3 = 12, funct4 = 13;         // Button Pins
 const int receive_pin = 7;                                            // RF Receiver Pin is 7
 RH_ASK rf_driver(2000, receive_pin, 0, 0);                            // Initialize RF Receiver Driver
-AESLib aesLib;
 bool state1 = false, state2 = false, state3 = false, state4 = false;  // Create states for now
 int internal_counter = 3164; 
 
 struct Packet {
-  char* hashed;
+  char* text;
   int counter;
   int function;
 };
@@ -81,34 +80,31 @@ void printBytes(byte *byte_array) {
 }
 
 void handleReceive() {
-  uint8_t ciphertext[32];    
-  uint8_t length = sizeof(ciphertext);
-  char decryptedtext[32]; 
+  uint8_t msg[32];    
+  uint8_t length = sizeof(msg);
 
-  if (rf_driver.recv(ciphertext, &length)) {
+  if (rf_driver.recv(msg, &length)) {
     // Check the received message
-    ciphertext[length] = '\0';
+    msg[length] = '\0';
     Serial.println("We received your message:");
-    Serial.println((char*) ciphertext);
+    Serial.println((char*) msg);
     // Decrypt the message and check it
-    decryption(ciphertext, decryptedtext);
-    Serial.println(decryptedtext);
     // Split the message into our expected values to compare
     int counter = 0;
     int function = 0;
     bool done = false;
     for (int i = 0; i < length; i++) {
       if (!done) {
-        if (decryptedtext[i] == '_') { 
-          function = (decryptedtext[i+1] - 0x30);
+        if (msg[i] == '_') { 
+          function = (msg[i+1] - 0x30);
           done = true;
         } else {
           counter *= 10;
-          counter += (decryptedtext[i] - 0x30);
+          counter += (msg[i] - 0x30);
         }
       }
     }
-    packet.hashed = ciphertext;
+    packet.text = msg;
     packet.counter = counter;
     packet.function = function;
     Serial.println(String(counter) + " " + String(function));

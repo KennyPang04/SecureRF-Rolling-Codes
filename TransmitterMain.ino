@@ -2,11 +2,10 @@
 #include <SPI.h>
 #include <LiquidCrystal.h>
 #include <cppQueue.h>
-#include <AESLib.h>
 
 // Create Structs that are needed for Buttons and Transmitting/Queue
 struct Packet {
-  char* hashed;
+  char* msg;
   int counter;
   int function;
 };
@@ -20,44 +19,10 @@ struct Button {
 const int funct1 = 5, funct2 = 4, funct3 = 3, funct4 = 2; // Button Pins
 const int led = 6, transmit_pin = 7;                      // LED Pin is 6 and RF Transmitter Pin is 7
 const int rs=13, en=12, d4=11, d5=10, d6=9, d7=8;         // LCD Pins are 8-13
-RH_ASK rf_driver(2000, 0, transmit_pin, 0);              
-LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
-cppQueue transmitterQueue(sizeof(Packet), 8, FIFO);
-AESLib aesLib;
-
+RH_ASK rf_driver(2000, 0, transmit_pin, 0);               
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7);                
+cppQueue transmitterQueue(sizeof(Packet), 8, FIFO);       
 int counter = 3164;
-const char msg[32];  
-char ciphertext[32];    
-
-uint16_t encryption(char *message, char *ciphertext) {
-  // Initialize vector for randomization and key
-  byte aes_key[16] = {
-    0x5A, 0xD4, 0xEA, 0x7C, 0x03, 0xFB, 0x80, 0x66,
-    0xC0, 0xFF, 0xEE, 0xAE, 0xC0, 0x2C, 0xF0, 0x0D
-  };
-  byte iv1[16] = {
-    0xC3, 0x0C, 0xAF, 0x92, 0x2D, 0x55, 0xBC, 0x1E,
-    0xA3, 0x7F, 0x2E, 0x91, 0x4B, 0xC6, 0x58, 0xE0
-  };
-  // Copy the message into a 32 byte char array for AES
-  char plaintext[32];
-  sprintf((char*)plaintext, "%s", message);
-  // Call encryption function and return the length
-  uint16_t length = aesLib.encrypt((byte*)plaintext, sizeof(plaintext), (byte*)ciphertext, aes_key, sizeof(aes_key), iv1);
-  // Was used for debugging purposes
-  // Serial.println(message);
-  // Serial.println(strlen(ciphertext));
-  // Serial.println(sizeof(aes_key));
-  return length;
-}
-
-void printBytes(byte *byte_array) {
-  for (int i = 0; i < strlen(byte_array); i++) {
-    Serial.print((byte) byte_array[i]);
-    Serial.print(" ");
-  }
-  Serial.println(" ");
-}
 
 // Button array for all buttons on the bread board
 Button buttons[] = {
@@ -100,11 +65,11 @@ void handleButtons() {
           }
           if (function != 255) {
             // Handle Encryption
+            const char msg[32];  
             snprintf(msg, 32, "%d_%d", counter, function);
-            encryption(msg, ciphertext);
             // Store everything in a packet
             struct Packet packetCode;
-            packetCode.hashed = ciphertext;
+            packetCode.msg = msg;
             packetCode.counter = counter;
             packetCode.function = function;
             // Store the packet into a queue to get transmitted
@@ -112,7 +77,7 @@ void handleButtons() {
             Serial.println("Queued");
             Serial.println(counter);
             Serial.println(function);
-            Serial.println(ciphertext);
+            Serial.println(msg);
             // Increment counter to prevent simple relay attacks
             counter += 67;
           }
@@ -134,8 +99,8 @@ void handleTransmit() {
 
     // Send a 32 byte message to receiver
     char msg[32];
-    strncpy(msg, pk.hashed, sizeof(msg));
-    Serial.println(pk.hashed);
+    strncpy(msg, pk.msg, sizeof(msg));
+    Serial.println(pk.msg);
     rf_driver.send((uint8_t *)msg, strlen(msg));
     rf_driver.waitPacketSent();
 
